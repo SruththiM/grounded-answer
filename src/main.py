@@ -10,11 +10,13 @@ Environment variables:
     GROQ_API_KEY  — required for live answers
     GROQ_MODEL    — optional, defaults to openai/gpt-oss-20b
 """
-
 import argparse
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Allow running as  python src/main.py  without installing the package
 sys.path.insert(0, str(Path(__file__).parent.parent))
