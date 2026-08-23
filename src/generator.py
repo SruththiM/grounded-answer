@@ -1,41 +1,16 @@
 """
 generator.py — grounded answer generation over retrieved policy clauses.
 
-Architecture:
+Uses Groq's OpenAI-compatible API.
 
-    User Question
-          ↓
-    BM25Retriever  (src/retriever.py)
-          ↓
-    top-k clauses
-          ↓
-    build_prompt()          ← pure function, fully unit-testable
-          ↓
-    AnswerGenerator.generate()  ← calls the LLM
-          ↓
-    Grounded answer string
-
-Configuration (environment variables):
-    OPENAI_API_KEY   — required for live calls
-    OPENAI_MODEL     — optional, defaults to "gpt-4o-mini"
-
-Typical usage:
-
-    from src.chunker import load_policy
-    from src.retriever import BM25Retriever
-    from src.generator import AnswerGenerator
-
-    clauses  = load_policy("data/policy-manual.md")
-    retriever = BM25Retriever(clauses)
-    generator = AnswerGenerator()
-
-    question = "What is the income threshold for a household of 3?"
-    evidence = retriever.retrieve(question, top_k=5)
-    answer   = generator.generate(question, evidence)
-    print(answer)
+Environment variables:
+    GROQ_API_KEY   — required
+    GROQ_MODEL     — optional
+                     defaults to "openai/gpt-oss-20b"
 """
 
 import os
+
 
 _SYSTEM_INSTRUCTIONS = """\
 You are a policy assistant for the Calder County Household Support Program.
@@ -51,6 +26,7 @@ Rules you must follow without exception:
    Format citations inline, for example: "According to §6.6.1, ..."
 """
 
+
 _NO_EVIDENCE_ANSWER = (
     "The available policy evidence is insufficient to answer this question."
 )
@@ -58,21 +34,25 @@ _NO_EVIDENCE_ANSWER = (
 
 def build_prompt(question: str, clauses: list[dict]) -> list[dict]:
     """
-    Construct the messages list to send to the LLM.
+    Construct the messages sent to the LLM.
 
-    Returns a list of dicts in OpenAI chat format:
-        [{"role": "system", "content": ...},
-         {"role": "user",   "content": ...}]
-
-    This function is pure — it makes no network calls and can be tested freely.
-    The entire policy manual is never included; only the supplied clauses are used.
+    Only the retrieved policy clauses are included.
+    The entire policy manual is never sent to the LLM.
     """
+
     if not clauses:
-        evidence_block = "(No policy evidence was retrieved for this question.)"
+        evidence_block = (
+            "(No policy evidence was retrieved for this question.)"
+        )
     else:
         parts = []
-        for c in clauses:
-            parts.append(f"[{c['id']} — {c['heading']}]\n{c['text']}")
+
+        for clause in clauses:
+            parts.append(
+                f"[{clause['id']} — {clause['heading']}]\n"
+                f"{clause['text']}"
+            )
+
         evidence_block = "\n\n".join(parts)
 
     user_content = (
@@ -85,51 +65,112 @@ def build_prompt(question: str, clauses: list[dict]) -> list[dict]:
     )
 
     return [
-        {"role": "system", "content": _SYSTEM_INSTRUCTIONS},
-        {"role": "user",   "content": user_content},
+        {
+            "role": "system",
+            "content": _SYSTEM_INSTRUCTIONS,
+        },
+        {
+            "role": "user",
+            "content": user_content,
+        },
     ]
 
 
 class AnswerGenerator:
     """
-    Sends a grounded prompt to the LLM and returns the answer string.
-
-    Prompt construction is delegated to build_prompt() so it can be
-    tested independently without any API calls.
+    Generates grounded answers using Groq's
+    OpenAI-compatible API.
     """
 
     def __init__(self, model: str | None = None) -> None:
-        self._model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        self._model = model or os.environ.get(
+            "GROQ_MODEL",
+            "openai/gpt-oss-20b",
+        )
 
-    def generate(self, question: str, clauses: list[dict]) -> str:
+    def generate(
+        self,
+        question: str,
+        clauses: list[dict],
+    ) -> str:
         """
-        Generate a grounded answer for *question* using only *clauses* as evidence.
+        Generate a grounded answer using only the supplied
+        policy clauses.
 
-        Returns _NO_EVIDENCE_ANSWER immediately if clauses is empty, avoiding
-        an unnecessary API call.
+        No API call is made when the question or evidence is empty.
         """
+
+        # ---------------------------------------------------------
+        # Fast path: empty question
+        # ---------------------------------------------------------
+
         if not question or not question.strip():
             return _NO_EVIDENCE_ANSWER
+
+        # ---------------------------------------------------------
+        # Fast path: no retrieved evidence
+        # ---------------------------------------------------------
 
         if not clauses:
             return _NO_EVIDENCE_ANSWER
 
-        import openai  # imported here so the module loads without openai installed
+        # ---------------------------------------------------------
+        # Import OpenAI-compatible client
+        # ---------------------------------------------------------
 
-        api_key = os.environ.get("OPENAI_API_KEY")
+        import openai
+
+        # ---------------------------------------------------------
+        # Read Groq API key from environment
+        # ---------------------------------------------------------
+
+        api_key = os.environ.get(
+            "GROQ_API_KEY",
+            "",
+        ).strip()
+
         if not api_key:
             raise EnvironmentError(
-                "OPENAI_API_KEY environment variable is not set. "
-                "Export it before running the generator."
+                "GROQ_API_KEY environment variable is not set. "
+                "Set it before running the generator."
             )
 
-        client = openai.OpenAI(api_key=api_key)
-        messages = build_prompt(question, clauses)
+        # ---------------------------------------------------------
+        # Create Groq client
+        # ---------------------------------------------------------
+
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+
+        # ---------------------------------------------------------
+        # Build grounded prompt
+        # ---------------------------------------------------------
+
+        messages = build_prompt(
+            question,
+            clauses,
+        )
+
+        # ---------------------------------------------------------
+        # Call Groq
+        # ---------------------------------------------------------
 
         response = client.chat.completions.create(
             model=self._model,
             messages=messages,
-            temperature=0,        # deterministic — policy Q&A, not creative writing
+            temperature=0,
             max_tokens=512,
         )
-        return response.choices[0].message.content.strip()
+
+        # ---------------------------------------------------------
+        # Extract answer
+        # ---------------------------------------------------------
+
+        content = response.choices[0].message.content
+
+        if not content:
+            return _NO_EVIDENCE_ANSWER
+
+        return content.strip()
