@@ -1,50 +1,58 @@
+"""
+tests/test_evaluation.py — tests for the evaluation harness and dataset.
+"""
+
 from pathlib import Path
+import pytest
 
 from src.chunker import load_policy
 from src.retriever import BM25Retriever
-
+from src.evaluator import EVALUATION_DATASET, evaluate_question, run_all_evaluations
+from src.pipeline import GroundedAnswerPipeline
 
 MANUAL_PATH = Path(__file__).parent.parent / "data" / "policy-manual.md"
 
 
-EVALUATION_CASES = [
-    {
-        "question": "What is the income threshold for a household of 3?",
-        "expected_clause": "§6.6.1",
-    },
-    {
-        "question": "How many days does a recipient have to report a change of circumstances?",
-        "expected_clause": "§4.3.2",
-    },
-]
+@pytest.fixture(scope="module")
+def pipeline():
+    return GroundedAnswerPipeline.build(MANUAL_PATH)
 
 
-def build_retriever():
-    clauses = load_policy(str(MANUAL_PATH))
-    return BM25Retriever(clauses)
+def test_evaluation_dataset_has_at_least_10_questions():
+    assert len(EVALUATION_DATASET) >= 10
 
 
-def test_income_threshold_retrieval():
-    retriever = build_retriever()
+def test_evaluation_dataset_covers_required_categories():
+    categories = {case["category"] for case in EVALUATION_DATASET}
+    statuses = {case["expected_status"] for case in EVALUATION_DATASET}
 
-    results = retriever.retrieve(
-        EVALUATION_CASES[0]["question"],
-        top_k=5,
-    )
-
-    ids = [result["id"] for result in results]
-
-    assert EVALUATION_CASES[0]["expected_clause"] in ids
+    assert "answered" in statuses
+    assert "refusal" in statuses
+    assert "contradiction" in statuses
+    assert "gap" in statuses
 
 
-def test_reporting_deadline_retrieval():
-    retriever = build_retriever()
+def test_contradiction_question_retrieves_both_conflicting_clauses(pipeline):
+    """The contradiction question must retrieve both §4.3.2 and §9.1.4."""
+    case = next(c for c in EVALUATION_DATASET if c["id"] == "Q09")
+    evidence = pipeline._retriever.retrieve(case["question"], top_k=5)
+    evidence_ids = [c["id"] for c in evidence]
 
-    results = retriever.retrieve(
-        EVALUATION_CASES[1]["question"],
-        top_k=5,
-    )
+    assert "§4.3.2" in evidence_ids
+    assert "§9.1.4" in evidence_ids
 
-    ids = [result["id"] for result in results]
 
-    assert EVALUATION_CASES[1]["expected_clause"] in ids
+def test_student_gap_question_retrieves_award_clause(pipeline):
+    """The student gap question must retrieve §7.1.3."""
+    case = next(c for c in EVALUATION_DATASET if c["id"] == "Q10")
+    evidence = pipeline._retriever.retrieve(case["question"], top_k=5)
+    evidence_ids = [c["id"] for c in evidence]
+
+    assert "§7.1.3" in evidence_ids
+
+
+def test_dry_run_evaluation_passes_all_cases(pipeline):
+    """Dry-run evaluation checks evidence retrieval across all cases."""
+    results = run_all_evaluations(pipeline, dry_run=True)
+    assert len(results) == len(EVALUATION_DATASET)
+    assert all(r["passed"] for r in results)

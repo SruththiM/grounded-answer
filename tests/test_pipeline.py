@@ -246,3 +246,38 @@ def test_reporting_deadline_evidence_is_retrieved():
     result = pipeline.ask("How many days to report a change of circumstances?")
     ids = [c["id"] for c in result["evidence"]]
     assert "§4.3.2" in ids
+
+
+# ---------------------------------------------------------------------------
+# Citation extraction & Status classification
+# ---------------------------------------------------------------------------
+
+def test_extract_citations_finds_multiple_unique_clauses():
+    from src.pipeline import extract_citations
+    text = "According to §6.6.1 and §7.1.1, also see §6.6.1 for limits."
+    assert extract_citations(text) == ["§6.6.1", "§7.1.1"]
+
+
+def test_classify_status_detects_contradiction():
+    from src.pipeline import classify_status
+    text = "The policy manual contains conflicting provisions. Clause §4.3.2 states 10 days whereas Clause §9.1.4 states 30 days. Next step: Escalate."
+    assert classify_status(text) == "contradiction"
+
+
+def test_classify_status_detects_gap():
+    from src.pipeline import classify_status
+    text = "Unable to determine from the policy manual. Clause §7.1.3 cross-references §5.4 which does not specify the rule. Next step: Consult supervisor."
+    assert classify_status(text) == "gap"
+
+
+def test_classify_status_detects_refusal():
+    from src.pipeline import classify_status
+    text = "Unable to determine from the policy manual. The available policy evidence is insufficient. Next step: Consult supervisor."
+    assert classify_status(text) == "refusal"
+
+
+def test_classify_status_detects_answered():
+    from src.pipeline import classify_status
+    text = "According to §6.6.1, the income threshold for a household of 3 is $2,000 per month."
+    assert classify_status(text) == "answered"
+

@@ -37,38 +37,50 @@ def _expand_query(query: str) -> str:
     """
     Add a small number of policy-domain synonyms to the query.
 
-    BM25 matches words literally. For example, the user may ask:
+    BM25 matches words literally. Natural language user queries may use terms
+    like "away from county", "car", "salary", or "report deadline", while the
+    manual uses specific terminology like "absence", "motor vehicle",
+    "earnings", or "change of circumstances".
 
-        "What happens if a household becomes temporarily ineligible?"
-
-    while the policy may describe the same concept using:
-
-        "suspension" / "suspended"
-
-    Query expansion lets BM25 retrieve the relevant suspension
-    clauses without changing the original user question.
-
-    Only closely related policy terminology is expanded here.
+    Query expansion bridges this gap without modifying the original question.
     """
-
     expanded = query
 
-    # Eligibility temporarily stopping is expressed as "suspension"
-    # in the policy manual.
-    if re.search(
-        r"\btemporarily\s+ineligible\b",
-        query,
-        flags=re.IGNORECASE,
-    ):
-        expanded += " suspension suspended"
+    # Eligibility temporarily stopping / suspension
+    if re.search(r"\btemporarily\s+ineligible\b", query, flags=re.IGNORECASE):
+        expanded += " suspension suspended award"
 
-    # Similar wording users may use.
-    if re.search(
-        r"\btemporarily\s+ineligible\b",
-        query,
-        flags=re.IGNORECASE,
-    ):
-        expanded += " award"
+    # Temporary absence / medical absence
+    if re.search(r"\b(away|left|out\s+of|leave)\s+(the\s+)?county\b", query, flags=re.IGNORECASE):
+        expanded += " absence absent temporary residence"
+
+    # Vehicle / car
+    if re.search(r"\b(car|automobile|truck|vehicle)\b", query, flags=re.IGNORECASE):
+        expanded += " motor vehicle countable resources"
+
+    # Earnings / salary / employment
+    if re.search(r"\b(salary|wages|job|work\s+income|earnings)\b", query, flags=re.IGNORECASE):
+        expanded += " earnings employment disregard countable income"
+
+    # Change of circumstances reporting / overpayments
+    if re.search(r"\b(report|reporting|notify|deadline|how\s+many\s+days)\b", query, flags=re.IGNORECASE) and re.search(r"\b(change|circumstances)\b", query, flags=re.IGNORECASE):
+        expanded += " calendar days overpayment obligations"
+
+    # Full-time students / higher education
+    if re.search(r"\b(student|students|college|university|higher\s+education)\b", query, flags=re.IGNORECASE):
+        expanded += " full time student education enrolment needs figure"
+
+    # Minimum award threshold / small entitlement ($25 floor)
+    if re.search(r"\b(award|entitlement|paid)\b", query, flags=re.IGNORECASE) and re.search(r"\b(calculated|deducting|\$\d+|less|minimum|resulting)\b", query, flags=re.IGNORECASE):
+        expanded += " resulting figure less than 25 no award is made"
+
+    # Sanctions / exceptions
+    if re.search(r"\b(sanction|sanctions|penalty|penalties)\b", query, flags=re.IGNORECASE):
+        expanded += " reduction monthly award dependent child activities daily living"
+
+    # Activities of daily living / disability / adjustments
+    if re.search(r"\b(activities\s+of\s+daily\s+living|adl|assistance)\b", query, flags=re.IGNORECASE):
+        expanded += " needs figure increased assessed requiring assistance"
 
     return expanded
 

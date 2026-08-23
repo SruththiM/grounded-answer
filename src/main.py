@@ -11,6 +11,7 @@ Environment variables:
     GROQ_MODEL    — optional, defaults to openai/gpt-oss-20b
 """
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -22,32 +23,41 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.pipeline import GroundedAnswerPipeline
-from src.generator import _NO_EVIDENCE_ANSWER
 
 
 def _print_result(question: str, result: dict, dry_run: bool = False) -> None:
     print(f"\nQuestion: {question}")
-    print("-" * 60)
+    print("=" * 65)
 
-    evidence = result["evidence"]
+    status = result.get("status", "answered").upper()
+    print(f"Status: [{status}]")
+
+    evidence = result.get("evidence", [])
     if evidence:
-        print("Retrieved policy evidence:")
+        print("\nRetrieved Policy Evidence:")
         for c in evidence:
-            print(f"  {c['id']}  [{c['heading']}]")
+            score_str = f"(score: {c.get('score', 0):.2f})" if "score" in c else ""
+            print(f"  • {c['id']} — {c['heading']} {score_str}")
     else:
-        print("Retrieved policy evidence: (none)")
+        print("\nRetrieved Policy Evidence: (none)")
 
-    print()
+    citations = result.get("citations", [])
+    if citations:
+        print(f"\nCitations: {', '.join(citations)}")
+
+    print("-" * 65)
     if dry_run:
         print("(dry-run — LLM call skipped)")
     else:
         print(f"Answer:\n{result['answer']}")
-    print()
+    print("=" * 65 + "\n")
 
 
-def _interactive_loop(pipeline: GroundedAnswerPipeline, dry_run: bool) -> None:
-    print("Calder County Household Support Program — Policy Assistant")
-    print("Type your question and press Enter.  Type 'quit' to exit.\n")
+def _interactive_loop(pipeline: GroundedAnswerPipeline, dry_run: bool, top_k: int = 5) -> None:
+    print("=================================================================")
+    print(" Calder County Household Support Program — Policy Assistant")
+    print("=================================================================")
+    print("Type your question and press Enter.  Type 'quit' or 'q' to exit.\n")
 
     while True:
         try:
@@ -62,7 +72,7 @@ def _interactive_loop(pipeline: GroundedAnswerPipeline, dry_run: bool) -> None:
             continue
 
         try:
-            result = pipeline.ask(question)
+            result = pipeline.ask(question, top_k=top_k, dry_run=dry_run)
         except EnvironmentError as exc:
             print(f"\nConfiguration error: {exc}\n")
             continue
@@ -72,7 +82,7 @@ def _interactive_loop(pipeline: GroundedAnswerPipeline, dry_run: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Grounded policy Q&A — Calder County Household Support Program"
+        description="Grounded Policy Q&A — Calder County Household Support Program"
     )
     parser.add_argument(
         "--question", "-q",
@@ -87,6 +97,17 @@ def main() -> None:
         "--manual",
         help="Path to the policy manual Markdown file (default: data/policy-manual.md).",
     )
+    parser.add_argument(
+        "--top-k", "-k",
+        type=int,
+        default=5,
+        help="Number of policy clauses to retrieve (default: 5).",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output raw JSON format.",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run or not os.environ.get("GROQ_API_KEY")
@@ -99,14 +120,19 @@ def main() -> None:
 
     if args.question:
         try:
-            result = pipeline.ask(args.question)
+            result = pipeline.ask(args.question, top_k=args.top_k, dry_run=dry_run)
         except EnvironmentError as exc:
             print(f"Configuration error: {exc}", file=sys.stderr)
             sys.exit(1)
-        _print_result(args.question, result, dry_run=dry_run)
+
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            _print_result(args.question, result, dry_run=dry_run)
     else:
-        _interactive_loop(pipeline, dry_run=dry_run)
+        _interactive_loop(pipeline, dry_run=dry_run, top_k=args.top_k)
 
 
 if __name__ == "__main__":
     main()
+

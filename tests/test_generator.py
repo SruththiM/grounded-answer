@@ -79,9 +79,10 @@ def test_system_message_contains_grounding_instructions(
     system = messages[0]["content"]
 
     assert "ONLY the policy evidence" in system
-    assert "Do not use outside knowledge" in system
-    assert "Do not invent" in system
-    assert "insufficient" in system
+    assert "outside knowledge" in system
+    assert "conflicting provisions" in system
+    assert "Next step:" in system
+    assert "Unable to determine" in system
 
 
 def test_user_message_contains_question(question, sample_clauses):
@@ -235,6 +236,8 @@ def test_generate_returns_insufficient_for_empty_clauses():
     )
 
     assert result == _NO_EVIDENCE_ANSWER
+    assert "Unable to determine" in result
+    assert "Next step:" in result
 
 
 def test_generate_returns_insufficient_for_empty_question(sample_clauses):
