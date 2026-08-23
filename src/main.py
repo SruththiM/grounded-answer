@@ -7,8 +7,8 @@ Usage:
     python src/main.py --dry-run
 
 Environment variables:
-    OPENAI_API_KEY  — required for live answers
-    OPENAI_MODEL    — optional, defaults to gpt-4o-mini
+    GROQ_API_KEY  — required for live answers
+    GROQ_MODEL    — optional, defaults to gpt-4o-mini
 """
 
 import argparse
@@ -87,7 +87,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    dry_run = args.dry_run or not os.environ.get("OPENAI_API_KEY")
+    dry_run = args.dry_run or not os.environ.get("GROQ_API_KEY")
 
     try:
         pipeline = GroundedAnswerPipeline.build(manual_path=args.manual)
