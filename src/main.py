@@ -8,7 +8,7 @@ Usage:
 
 Environment variables:
     GROQ_API_KEY  — required for live answers
-    GROQ_MODEL    — optional, defaults to gpt-4o-mini
+    GROQ_MODEL    — optional, defaults to openai/gpt-oss-20b
 """
 
 import argparse
