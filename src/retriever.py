@@ -59,12 +59,16 @@ def _expand_query(query: str) -> str:
         expanded += " motor vehicle countable resources"
 
     # Earnings / salary / employment
-    if re.search(r"\b(salary|wages|job|work\s+income|earnings)\b", query, flags=re.IGNORECASE):
-        expanded += " earnings employment disregard countable income"
+    if re.search(r"\b(salary|wages|job|work\s+income|earnings|disregard)\b", query, flags=re.IGNORECASE):
+        expanded += " earnings employment disregard countable income 120 175 amendment"
 
     # Change of circumstances reporting / overpayments
     if re.search(r"\b(report|reporting|notify|deadline|how\s+many\s+days)\b", query, flags=re.IGNORECASE) and re.search(r"\b(change|circumstances)\b", query, flags=re.IGNORECASE):
-        expanded += " calendar days overpayment obligations"
+        expanded += " calendar days overpayment obligations 10 14 30 amendment"
+
+    # Income thresholds
+    if re.search(r"\b(income\s+threshold|threshold|monthly\s+threshold)\b", query, flags=re.IGNORECASE):
+        expanded += " income thresholds monthly threshold 2410 2500 amendment"
 
     # Full-time students / higher education
     if re.search(r"\b(student|students|college|university|higher\s+education)\b", query, flags=re.IGNORECASE):
@@ -76,11 +80,15 @@ def _expand_query(query: str) -> str:
 
     # Sanctions / exceptions
     if re.search(r"\b(sanction|sanctions|penalty|penalties)\b", query, flags=re.IGNORECASE):
-        expanded += " reduction monthly award dependent child activities daily living"
+        expanded += " reduction monthly award 20 15 per cent dependent child activities daily living increased the award 10 5 3a amendment"
 
     # Activities of daily living / disability / adjustments
     if re.search(r"\b(activities\s+of\s+daily\s+living|adl|assistance)\b", query, flags=re.IGNORECASE):
         expanded += " needs figure increased assessed requiring assistance"
+
+    # Temporal references (dates / amendment)
+    if re.search(r"\b(february|march|april|2026|amendment|effective|determination|transitional)\b", query, flags=re.IGNORECASE):
+        expanded += " effective 1 march 2026 amendment transitional provision"
 
     return expanded
 

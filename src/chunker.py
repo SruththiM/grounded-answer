@@ -18,13 +18,79 @@ _CLAUSE_START = re.compile(r"^\*\*(\d+)\.(\d+)\.(\d+)(?:[^*]*)?\*\*")
 # Matches a ## section heading, e.g. ## 4.3 Recipient obligations
 _SECTION_HEADING = re.compile(r"^## (\d+\.\d+)\s+(.*)")
 
+# Matches an amendment paragraph start, e.g. **1.1** or **4.2**
+_AMENDMENT_PARA_START = re.compile(r"^\*\*(\d+)\.(\d+)\*\*\s*(.*)")
+_AMENDMENT_HEADING = re.compile(r"^###?\s+(\d+)\.\s+(.*)")
 
-def load_policy(path: str) -> list[dict]:
+
+def _parse_amendment(path: Path) -> list[dict]:
+    """Parse an Amendment Markdown file into clause dictionaries."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    clauses: list[dict] = []
+    current_heading = "Amendment Provision"
+    current_clause: dict | None = None
+    current_lines: list[str] = []
+
+    # Extract amendment number and effective date
+    amendment_name = path.stem.replace("Amendment No. ", "Amendment ").replace("amendment-", "Amendment ")
+    effective_date = "1 March 2026"
+    for line in lines[:10]:
+        if "Effective:" in line:
+            effective_date = line.split("Effective:", 1)[1].replace("*", "").strip()
+
+    def _flush():
+        if current_clause is None:
+            return
+        current_clause["text"] = "\n".join(current_lines).strip()
+        clauses.append(current_clause)
+
+    for line in lines:
+        h_match = _AMENDMENT_HEADING.match(line)
+        if h_match:
+            current_heading = f"{h_match.group(2).strip()} (Effective {effective_date})"
+            continue
+
+        p_match = _AMENDMENT_PARA_START.match(line)
+        if p_match:
+            _flush()
+            sec_num = p_match.group(1)
+            para_num = p_match.group(2)
+            clause_id = f"Amendment 2026-01 ¶{sec_num}.{para_num}"
+            if sec_num == "4" and para_num == "2":
+                clause_id = "Amendment 2026-01 ¶4.2 (§10.5.3A)"
+
+            current_clause = {
+                "id": clause_id,
+                "part": 13,
+                "section": f"Amendment {sec_num}",
+                "heading": current_heading,
+                "document": path.name,
+                "effective_date": effective_date,
+            }
+            current_lines = [line]
+            continue
+
+        if current_clause is not None:
+            current_lines.append(line)
+
+    _flush()
+    return clauses
+
+
+def load_policy(path: str | Path, include_amendments: bool = True) -> list[dict]:
     """
-    Parse the policy manual at *path* and return a list of clause dicts.
-    The file is read as UTF-8.  The source file is never modified.
+    Parse the policy manual and any associated amendments into clause dicts.
+    The source files are never modified.
     """
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    target_path = Path(path)
+    if not target_path.exists():
+        raise FileNotFoundError(f"Policy file not found: {target_path}")
+
+    # Check if target is directly an amendment
+    if "amendment" in target_path.name.lower():
+        return _parse_amendment(target_path)
+
+    lines = target_path.read_text(encoding="utf-8").splitlines()
 
     clauses: list[dict] = []
     current_heading = ""
@@ -32,7 +98,6 @@ def load_policy(path: str) -> list[dict]:
     current_lines: list[str] = []
 
     def _flush():
-        """Save the accumulated lines into current_clause and append it."""
         if current_clause is None:
             return
         current_clause["text"] = "\n".join(current_lines).strip()
@@ -57,16 +122,24 @@ def load_policy(path: str) -> list[dict]:
                 "part": part_num,
                 "section": section_str,
                 "heading": current_heading,
+                "document": target_path.name,
+                "effective_date": "31 December 2025 (Consolidated Base)",
             }
             current_lines = [line]
             continue
 
-        # Accumulate into the current clause (sub-items, tables, blank lines)
+        # Accumulate into current clause
         if current_clause is not None:
             current_lines.append(line)
 
-    # Flush the final clause
     _flush()
+
+    # Ingest any amendment files in the same directory
+    if include_amendments and target_path.parent.exists():
+        for f in sorted(target_path.parent.glob("*.md")):
+            if f.name != target_path.name and "amendment" in f.name.lower():
+                amendment_clauses = _parse_amendment(f)
+                clauses.extend(amendment_clauses)
 
     return clauses
 

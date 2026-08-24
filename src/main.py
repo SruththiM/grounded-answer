@@ -15,9 +15,18 @@ import json
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
+try:
+    # pyrefly: ignore [missing-import]
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
 
 # Allow running as  python src/main.py  without installing the package
 sys.path.insert(0, str(Path(__file__).parent.parent))

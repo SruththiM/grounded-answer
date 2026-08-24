@@ -141,3 +141,43 @@ Structured Output (answer, evidence, citations, status, is_refusal)
 ```
 
 Each stage is decoupled in `GroundedAnswerPipeline`. Should Day-Two introduce changes (e.g., alternative retrieval algorithms, custom citation formatting, modified threshold boundaries, or different model backends), individual components can be updated or swapped without refactoring the rest of the application.
+
+---
+
+## 9. Day-Two Adaptation Record: Amendment No. 2026-01 & Temporal Grounding
+
+### Context of the Requirement Change
+On Day Two, **Amendment No. 2026-01** (issued 12 February 2026, effective 1 March 2026) was added to the corpus. The system was required to provide answers that are correct for the **specific date of the claim being asked about**, rather than assuming a single static state of policy.
+
+### Summary of Policy Changes in Amendment No. 2026-01
+1. **Earnings Disregard (§6.4.1(a))**: Increased from **$120/month** to **$175/month** (effective 1 March 2026).
+2. **Reporting Deadlines (§4.3.2 & §9.1.4)**: Aligned both clauses to **14 calendar days** for changes occurring on or after 1 March 2026 (resolving the prior 10-day vs 30-day contradiction).
+3. **Income Thresholds (§6.6.1)**: Updated schedule for determinations on/after 1 March 2026 (e.g., Household of 4 increased from **$2,410** to **$2,500**).
+4. **Sanctions (§10.5.2 & §10.5.3A)**: Standard sanction rate reduced from **20%** to **15%**, and a new exemption (**§10.5.3A**) was enacted prohibiting sanctions for failure to report where the change would have increased the award.
+5. **Transitional Provisions (¶5.1 - ¶5.3)**: 
+   - Paragraphs 1, 3, and 4 apply to determinations made on or after 1 March 2026.
+   - Paragraph 2 applies to changes of circumstances occurring on or after 1 March 2026 (pre-March 2026 changes remain subject to the old rules/contradiction).
+
+### What Was Changed
+- **Corpus Ingestion (`src/chunker.py`)**: Enhanced `load_policy()` to automatically discover and parse amendment files alongside `policy-manual.md`. Amendment paragraphs are chunked with distinct identifiers (`Amendment 2026-01 ¶X.Y`) and tagged with `effective_date: 1 March 2026`.
+- **Query Expansion (`src/retriever.py`)**: Added terms for new numerical thresholds ($175, $2,500, 15%, 14 days, §10.5.3A) and temporal date markers ("February 2026", "April 2026", "March 2026", "amendment", "effective").
+- **Temporal Prompt Framing (`src/generator.py`)**: Instructed the LLM to inspect the date of the claim/determination. Pre-1 March 2026 claims are answered using base manual rules; post-1 March 2026 claims are answered using Amendment No. 2026-01.
+- **Citation Extraction (`src/pipeline.py`)**: Expanded citation regex to support lettered clauses (`§10.5.3A`) and amendment citations (`Amendment 2026-01 ¶3.1`).
+- **Evaluation Suite (`src/evaluator.py`)**: Expanded to 17 questions specifically verifying temporal pairs (Feb 2026 vs April 2026 claims across thresholds, disregards, sanctions, and reporting deadlines).
+
+### What Was Chosen NOT to Change
+- **BM25 Retrieval Engine**: We chose not to replace BM25 with a complex vector store or time-indexed database. Feeding both the base manual clause and the corresponding amendment paragraph in the top-5 evidence set allows the model to perform exact temporal reasoning without embedding hallucination.
+- **Pipeline Abstraction**: The 4-stage pipeline structure (`retrieve_evidence` -> `generate_answer` -> `extract_citations` -> `evaluate_decision`) established on Day 1 absorbed the amendment without any breaking architectural redesign.
+
+### What We Would Have Done Differently if Known Upfront
+- If temporal versioning and multi-amendment lifecycles had been specified in the original requirements, we would have implemented a formal clause schema with explicit date intervals:
+  ```json
+  {
+    "clause_id": "§6.4.1(a)",
+    "valid_from": "2025-12-31",
+    "valid_to": "2026-02-28",
+    "disregard": 120
+  }
+  ```
+  However, the dual-corpus retrieval approach combined with LLM temporal instruction proved exceptionally resilient, modular, and easy to maintain.
+

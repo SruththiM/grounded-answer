@@ -34,7 +34,7 @@ def test_evaluation_dataset_covers_required_categories():
 
 def test_contradiction_question_retrieves_both_conflicting_clauses(pipeline):
     """The contradiction question must retrieve both §4.3.2 and §9.1.4."""
-    case = next(c for c in EVALUATION_DATASET if c["id"] == "Q09")
+    case = next(c for c in EVALUATION_DATASET if c["expected_status"] == "contradiction")
     evidence = pipeline._retriever.retrieve(case["question"], top_k=5)
     evidence_ids = [c["id"] for c in evidence]
 
@@ -44,7 +44,7 @@ def test_contradiction_question_retrieves_both_conflicting_clauses(pipeline):
 
 def test_student_gap_question_retrieves_award_clause(pipeline):
     """The student gap question must retrieve §7.1.3."""
-    case = next(c for c in EVALUATION_DATASET if c["id"] == "Q10")
+    case = next(c for c in EVALUATION_DATASET if c["expected_status"] == "gap")
     evidence = pipeline._retriever.retrieve(case["question"], top_k=5)
     evidence_ids = [c["id"] for c in evidence]
 

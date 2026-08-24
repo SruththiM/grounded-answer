@@ -18,24 +18,42 @@ from src.pipeline import GroundedAnswerPipeline
 EVALUATION_DATASET: list[dict[str, Any]] = [
     {
         "id": "Q01",
-        "category": "Answerable (Table Lookup)",
-        "question": "What is the monthly income threshold for a household of 4?",
+        "category": "Temporal / Pre-Amendment Threshold",
+        "question": "For a claim dated February 2026, what is the monthly income threshold for a household of 4?",
         "expected_status": "answered",
         "expected_clauses": ["§6.6.1"],
         "key_terms": ["2,410", "$2410", "$2,410"],
-        "description": "Tests direct table lookup in Part 6 income threshold schedule.",
+        "description": "Tests pre-amendment income threshold table lookup (§6.6.1).",
     },
     {
         "id": "Q02",
-        "category": "Answerable (Disregards)",
-        "question": "How much monthly employment earnings are disregarded per household?",
+        "category": "Temporal / Post-Amendment Threshold",
+        "question": "For a claim dated April 2026, what is the monthly income threshold for a household of 4?",
         "expected_status": "answered",
-        "expected_clauses": ["§6.4.1"],
-        "key_terms": ["120", "$120"],
-        "description": "Tests earnings disregard rule in §6.4.1(a) applied once per household.",
+        "expected_clauses": ["§6.6.1"],
+        "key_terms": ["2,500", "$2500", "$2,500"],
+        "description": "Tests post-amendment income threshold under Amendment 2026-01 ¶3.1.",
     },
     {
         "id": "Q03",
+        "category": "Temporal / Pre-Amendment Disregard",
+        "question": "For a determination made in January 2026, how much monthly employment earnings are disregarded per household?",
+        "expected_status": "answered",
+        "expected_clauses": ["§6.4.1"],
+        "key_terms": ["120", "$120"],
+        "description": "Tests pre-amendment earnings disregard rule ($120) in §6.4.1(a).",
+    },
+    {
+        "id": "Q04",
+        "category": "Temporal / Post-Amendment Disregard",
+        "question": "For a determination made in April 2026, how much monthly employment earnings are disregarded per household?",
+        "expected_status": "answered",
+        "expected_clauses": ["§6.4.1"],
+        "key_terms": ["175", "$175"],
+        "description": "Tests post-amendment earnings disregard rule ($175) under Amendment 2026-01 ¶1.1.",
+    },
+    {
+        "id": "Q05",
         "category": "Citation / Resource Limit",
         "question": "What is the maximum countable resource limit and is a motor vehicle excluded?",
         "expected_status": "answered",
@@ -44,7 +62,7 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests countable resources limit and primary motor vehicle exclusion.",
     },
     {
-        "id": "Q04",
+        "id": "Q06",
         "category": "Citation / Needs Schedule",
         "question": "What is the monthly needs figure for a couple?",
         "expected_status": "answered",
@@ -53,7 +71,7 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests baseline needs figure lookup for couple composition.",
     },
     {
-        "id": "Q05",
+        "id": "Q07",
         "category": "Answerable (Adjustments)",
         "question": "By how much is the needs figure increased if a household member requires assistance with two or more activities of daily living?",
         "expected_status": "answered",
@@ -62,7 +80,7 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests specific needs adjustment for ADL assistance in §7.3.1.",
     },
     {
-        "id": "Q06",
+        "id": "Q08",
         "category": "Paraphrased Query",
         "question": "How long can a beneficiary stay out of Calder County to receive specialized medical treatment without losing their eligibility?",
         "expected_status": "answered",
@@ -71,16 +89,34 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests paraphrased query on temporary medical absence exception (§3.2.2(a)).",
     },
     {
-        "id": "Q07",
+        "id": "Q09",
         "category": "Edge Case / Sanction Exception",
-        "question": "Can the Department impose a 20 percent sanction on a household that includes a 1-year-old child?",
+        "question": "Can the Department impose a sanction on a household that includes a 1-year-old child?",
         "expected_status": "answered",
         "expected_clauses": ["§10.5.3"],
         "key_terms": ["must not", "no", "cannot", "prohibited", "under the age of 2", "under 2", "child"],
         "description": "Tests statutory exemption from sanctions for households with child under 2.",
     },
     {
-        "id": "Q08",
+        "id": "Q10",
+        "category": "Temporal / Post-Amendment Sanction Rate",
+        "question": "For a determination made in April 2026, what percentage reduction applies to a first sanction?",
+        "expected_status": "answered",
+        "expected_clauses": ["§10.5.2"],
+        "key_terms": ["15", "15 per cent", "15%"],
+        "description": "Tests post-amendment reduced sanction rate (15%) under Amendment 2026-01 ¶4.1.",
+    },
+    {
+        "id": "Q11",
+        "category": "Temporal / New Sanction Exemption",
+        "question": "Under Amendment No. 2026-01, can a sanction be imposed for a failure to report if the change would have increased the award?",
+        "expected_status": "answered",
+        "expected_clauses": ["§10.5.3A"],
+        "key_terms": ["must not", "no", "cannot", "prohibited", "increased"],
+        "description": "Tests new §10.5.3A sanction exemption inserted by Amendment 2026-01 ¶4.2.",
+    },
+    {
+        "id": "Q12",
         "category": "Edge Case / Minimum Award",
         "question": "Will an award be paid if the calculated monthly entitlement after deducting income comes out to $18?",
         "expected_status": "answered",
@@ -89,16 +125,25 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests minimum award threshold rule ($25 floor).",
     },
     {
-        "id": "Q09",
-        "category": "Genuine Contradiction",
-        "question": "How many days does a recipient have to report a change of circumstances to the Department?",
+        "id": "Q13",
+        "category": "Pre-Amendment Contradiction",
+        "question": "For a change of circumstances occurring in January 2026, how many days does a recipient have to report the change?",
         "expected_status": "contradiction",
         "expected_clauses": ["§4.3.2", "§9.1.4"],
         "key_terms": ["conflict", "conflicting", "10", "30", "escalat", "administrator"],
-        "description": "Tests internal contradiction between §4.3.2 (10 days) and §9.1.4 (30 days).",
+        "description": "Tests pre-amendment contradiction between §4.3.2 (10 days) and §9.1.4 (30 days).",
     },
     {
-        "id": "Q10",
+        "id": "Q14",
+        "category": "Temporal / Post-Amendment Reporting Deadline",
+        "question": "For a change of circumstances occurring in April 2026, how many calendar days does a recipient have to report the change?",
+        "expected_status": "answered",
+        "expected_clauses": ["§4.3.2"],
+        "key_terms": ["14", "14 calendar days", "14 days"],
+        "description": "Tests aligned 14-day reporting deadline under Amendment 2026-01 ¶2.1 and ¶2.2.",
+    },
+    {
+        "id": "Q15",
         "category": "Apparent Policy Gap",
         "question": "How is the monthly needs figure calculated for a household member who is a full-time student?",
         "expected_status": "gap",
@@ -107,7 +152,7 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests apparent policy gap / broken reference in §7.1.3 pointing to §5.4.",
     },
     {
-        "id": "Q11",
+        "id": "Q16",
         "category": "Refusal (Out of Scope)",
         "question": "What dental and optical care expenses are covered under the Household Support Program?",
         "expected_status": "refusal",
@@ -116,7 +161,7 @@ EVALUATION_DATASET: list[dict[str, Any]] = [
         "description": "Tests refusal when topic is completely absent from the manual.",
     },
     {
-        "id": "Q12",
+        "id": "Q17",
         "category": "Refusal (Unsupported Inference)",
         "question": "Can an applicant receive a grant under this program to fund business startup costs?",
         "expected_status": "refusal",
@@ -148,12 +193,12 @@ def evaluate_question(
     if dry_run:
         # In dry run, check whether required clauses are in retrieved evidence
         if case["expected_status"] == "gap":
-            if not any(req in evidence_ids for req in case["expected_clauses"]):
+            if not any(any(req in eid for eid in evidence_ids) for req in case["expected_clauses"]):
                 passed = False
                 reasons.append(f"Missing required gap clause ({case['expected_clauses']}) in retrieved evidence")
         else:
             for req_clause in case["expected_clauses"]:
-                if req_clause not in evidence_ids:
+                if not any(req_clause in eid for eid in evidence_ids):
                     passed = False
                     reasons.append(f"Missing required clause {req_clause} in retrieved evidence")
         return {
